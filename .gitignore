@@ -27,3 +27,6 @@ Thumbs.db
 logo_b64*
 logo_opt*
 img_*
+
+.vercel
+.env*
