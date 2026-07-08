@@ -150,7 +150,6 @@ t.src=v;s=b.getElementsByTagName(e)[0];
 s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '946426101790251');
-fbq('track', 'PageView');
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
@@ -185,43 +184,70 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
       </ul>
     </div>
   </div>
-  <!-- Disparo do evento ViewContent no clique do botao (Pixel + API de Conversoes) -->
+  <!-- Eventos Meta: PageView e ViewContent pelos dois caminhos (Pixel + API de Conversoes), com event_id compartilhado p/ desduplicacao -->
   <script>
   (function () {
-    var btn = document.getElementById('cta-grupo');
-    if (!btn) return;
     function getCookie(name) {
       var m = document.cookie.match('(?:^|; )' + name.replace(/([.*+?^${}()|[\]\\])/g, '\\$1') + '=([^;]*)');
       return m ? decodeURIComponent(m[1]) : undefined;
     }
-    btn.addEventListener('click', function () {
-      // event_id compartilhado entre Pixel e CAPI para a Meta desduplicar
-      var eventId = (window.crypto && crypto.randomUUID)
+    function newId() {
+      return (window.crypto && crypto.randomUUID)
         ? crypto.randomUUID()
         : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
-
-      // 1) Pixel do navegador
-      if (window.fbq) {
-        fbq('track', 'ViewContent', { content_name: 'Entrar no Grupo VIP' }, { eventID: eventId });
-      }
-
-      // 2) API de Conversoes (envio pelo servidor)
+    }
+    function sendCapi(payload) {
       try {
         fetch('/api/track', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           keepalive: true,
-          body: JSON.stringify({
-            event_name: 'ViewContent',
-            event_id: eventId,
-            event_source_url: window.location.href,
-            fbp: getCookie('_fbp'),
-            fbc: getCookie('_fbc'),
-            content_name: 'Entrar no Grupo VIP'
-          })
+          body: JSON.stringify(payload)
         }).catch(function () {});
       } catch (e) {}
+    }
+    // O Pixel cria o cookie _fbp de forma assincrona; esperamos ele existir (ate ~2s)
+    // para o envio pelo servidor casar melhor e desduplicar corretamente.
+    function withFbp(cb) {
+      var tries = 0;
+      (function poll() {
+        var fbp = getCookie('_fbp');
+        if (fbp || tries >= 10) { cb(fbp); return; }
+        tries++; setTimeout(poll, 200);
+      })();
+    }
+
+    // PAGEVIEW — Pixel + API de Conversoes (mesmo event_id)
+    var pvId = newId();
+    if (window.fbq) fbq('track', 'PageView', {}, { eventID: pvId });
+    withFbp(function (fbp) {
+      sendCapi({
+        event_name: 'PageView',
+        event_id: pvId,
+        event_source_url: window.location.href,
+        fbp: fbp,
+        fbc: getCookie('_fbc')
+      });
     });
+
+    // VIEWCONTENT — no clique do botao, Pixel + API de Conversoes (mesmo event_id)
+    var btn = document.getElementById('cta-grupo');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        var vcId = newId();
+        if (window.fbq) {
+          fbq('track', 'ViewContent', { content_name: 'Entrar no Grupo VIP' }, { eventID: vcId });
+        }
+        sendCapi({
+          event_name: 'ViewContent',
+          event_id: vcId,
+          event_source_url: window.location.href,
+          content_name: 'Entrar no Grupo VIP',
+          fbp: getCookie('_fbp'),
+          fbc: getCookie('_fbc')
+        });
+      });
+    }
   })();
   </script>
 </body>
