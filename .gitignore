@@ -1,0 +1,29 @@
+# Dependências
+node_modules/
+
+# Arquivos de build / Vercel
+.vercel/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+
+# Variáveis de ambiente
+.env
+.env.local
+.env*.local
+
+# Arquivos temporários de imagem (não versionar)
+logo_b64*
+logo_opt*
+img_*
