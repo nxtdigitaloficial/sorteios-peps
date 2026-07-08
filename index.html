@@ -139,6 +139,23 @@
     .cta{font-size:22px;}
   }
 </style>
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '946426101790251');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
 </head>
 <body>
   <div class="wrap">
@@ -153,7 +170,7 @@
 
       <p class="sub">👇 Grupo VIP de Sorteios — 100% Gratuito!</p>
 
-      <a href="https://chat.whatsapp.com/Dg59bBH9lYdKMGA8zJ8LCv" target="_blank" rel="noopener noreferrer" class="cta">Entrar no Grupo VIP</a>
+      <a href="https://chat.whatsapp.com/Dg59bBH9lYdKMGA8zJ8LCv" target="_blank" rel="noopener noreferrer" class="cta" id="cta-grupo">Entrar no Grupo VIP</a>
 
       <div class="slots">
         ⏳ Vagas restantes: <b>4</b>
@@ -168,5 +185,44 @@
       </ul>
     </div>
   </div>
+  <!-- Disparo do evento ViewContent no clique do botao (Pixel + API de Conversoes) -->
+  <script>
+  (function () {
+    var btn = document.getElementById('cta-grupo');
+    if (!btn) return;
+    function getCookie(name) {
+      var m = document.cookie.match('(?:^|; )' + name.replace(/([.*+?^${}()|[\]\\])/g, '\\$1') + '=([^;]*)');
+      return m ? decodeURIComponent(m[1]) : undefined;
+    }
+    btn.addEventListener('click', function () {
+      // event_id compartilhado entre Pixel e CAPI para a Meta desduplicar
+      var eventId = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+
+      // 1) Pixel do navegador
+      if (window.fbq) {
+        fbq('track', 'ViewContent', { content_name: 'Entrar no Grupo VIP' }, { eventID: eventId });
+      }
+
+      // 2) API de Conversoes (envio pelo servidor)
+      try {
+        fetch('/api/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            event_name: 'ViewContent',
+            event_id: eventId,
+            event_source_url: window.location.href,
+            fbp: getCookie('_fbp'),
+            fbc: getCookie('_fbc'),
+            content_name: 'Entrar no Grupo VIP'
+          })
+        }).catch(function () {});
+      } catch (e) {}
+    });
+  })();
+  </script>
 </body>
 </html>
