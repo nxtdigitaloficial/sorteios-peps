@@ -149,7 +149,21 @@ n.queue=[];t=b.createElement(e);t.async=!0;
 t.src=v;s=b.getElementsByTagName(e)[0];
 s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '946426101790251');
+// Identificação externa anônima (external_id): melhora a correspondência de
+// eventos sem coletar dado pessoal. O Pixel faz o hash automaticamente.
+var _extId = (function () {
+  try {
+    var v = localStorage.getItem('ext_id');
+    if (!v) {
+      v = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+      localStorage.setItem('ext_id', v);
+    }
+    return v;
+  } catch (e) { return undefined; }
+})();
+fbq('init', '946426101790251', _extId ? { external_id: _extId } : {});
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
@@ -196,6 +210,17 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         ? crypto.randomUUID()
         : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
     }
+    function getExtId() {
+      try { return localStorage.getItem('ext_id') || undefined; } catch (e) { return undefined; }
+    }
+    // fbc: usa o cookie _fbc; se ainda nao existir mas a visita veio de anuncio
+    // (fbclid na URL), monta o fbc no formato oficial fb.1.<timestamp>.<fbclid>
+    function getFbc() {
+      var v = getCookie('_fbc');
+      if (v) return v;
+      var fbclid = new URLSearchParams(window.location.search).get('fbclid');
+      return fbclid ? 'fb.1.' + Date.now() + '.' + fbclid : undefined;
+    }
     // Modo de teste: abrir o site com ?fbtest=TESTxxxxx faz os eventos do servidor
     // aparecerem na aba "Eventos de teste" do Gerenciador de Eventos da Meta.
     var testCode = new URLSearchParams(window.location.search).get('fbtest');
@@ -230,7 +255,8 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         event_id: pvId,
         event_source_url: window.location.href,
         fbp: fbp,
-        fbc: getCookie('_fbc')
+        fbc: getFbc(),
+        external_id: getExtId()
       });
     });
 
@@ -248,7 +274,8 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
           event_source_url: window.location.href,
           content_name: 'Entrar no Grupo VIP',
           fbp: getCookie('_fbp'),
-          fbc: getCookie('_fbc')
+          fbc: getFbc(),
+          external_id: getExtId()
         });
       });
     }

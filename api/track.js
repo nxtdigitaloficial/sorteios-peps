@@ -7,6 +7,8 @@
 // sem event_id são rejeitadas — é melhor não enviar do que enviar sem dedup e
 // gerar contagem em dobro nas campanhas.
 
+const crypto = require('crypto');
+
 const PIXEL_ID = '946426101790251';
 const API_VERSION = 'v21.0';
 const ALLOWED_EVENTS = ['PageView', 'ViewContent'];
@@ -51,6 +53,15 @@ module.exports = async (req, res) => {
   const fbc = body.fbc || cookies['_fbc'];
   if (fbp) userData.fbp = fbp;
   if (fbc) userData.fbc = fbc;
+
+  // external_id: o Pixel envia com hash SHA-256 automatico; aqui fazemos o
+  // mesmo hash para os dois lados casarem na Meta.
+  if (body.external_id && typeof body.external_id === 'string') {
+    userData.external_id = crypto
+      .createHash('sha256')
+      .update(body.external_id)
+      .digest('hex');
+  }
 
   const event = {
     event_name: body.event_name,
