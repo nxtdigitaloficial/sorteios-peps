@@ -1,9 +1,15 @@
 // Função serverless (Vercel) — Meta Conversions API (CAPI)
 // Recebe o evento do navegador e reenvia para a Meta pelo lado do servidor.
 // O token de acesso vem da variável de ambiente META_CAPI_TOKEN (nunca fica no código).
+//
+// Regra de desduplicação (Meta Payload Helper): todo evento do servidor DEVE
+// levar o mesmo event_id + event_name do evento do Pixel. Por isso, requisições
+// sem event_id são rejeitadas — é melhor não enviar do que enviar sem dedup e
+// gerar contagem em dobro nas campanhas.
 
 const PIXEL_ID = '946426101790251';
 const API_VERSION = 'v21.0';
+const ALLOWED_EVENTS = ['PageView', 'ViewContent'];
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -17,12 +23,16 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // O corpo pode chegar já como objeto (parse automático) ou como string.
-  let body = req.body;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch (e) { body = {}; }
+  const body = await readJsonBody(req);
+
+  if (!body.event_id || typeof body.event_id !== 'string') {
+    res.status(400).json({ ok: false, error: 'event_id obrigatorio (desduplicacao)' });
+    return;
   }
-  body = body || {};
+  if (!ALLOWED_EVENTS.includes(body.event_name)) {
+    res.status(400).json({ ok: false, error: 'event_name invalido' });
+    return;
+  }
 
   const cookies = parseCookies(req.headers.cookie || '');
 
@@ -36,18 +46,19 @@ module.exports = async (req, res) => {
   };
   if (ip) userData.client_ip_address = ip;
 
+  // fbp/fbc: usa o que o navegador mandou; senão, lê dos cookies da própria requisição
   const fbp = body.fbp || cookies['_fbp'];
   const fbc = body.fbc || cookies['_fbc'];
   if (fbp) userData.fbp = fbp;
   if (fbc) userData.fbc = fbc;
 
   const event = {
-    event_name: body.event_name || 'ViewContent',
+    event_name: body.event_name,
+    event_id: body.event_id,
     event_time: Math.floor(Date.now() / 1000),
     action_source: 'website',
     user_data: userData,
   };
-  if (body.event_id) event.event_id = body.event_id;
   if (body.event_source_url) event.event_source_url = body.event_source_url;
   if (body.content_name) event.custom_data = { content_name: body.content_name };
 
@@ -66,11 +77,35 @@ module.exports = async (req, res) => {
       }
     );
     const result = await fbRes.json();
-    res.status(fbRes.ok ? 200 : 502).json({ ok: fbRes.ok, meta: result });
+    res.status(fbRes.ok ? 200 : 502).json({
+      ok: fbRes.ok,
+      meta: result,
+      sent: { event_name: event.event_name, event_id: event.event_id },
+    });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message ? e.message : e) });
   }
 };
+
+// Aceita o corpo em qualquer formato que a plataforma entregar:
+// objeto já parseado, string, Buffer, ou stream ainda não lido.
+async function readJsonBody(req) {
+  let b = req.body;
+  if (b === undefined || b === null) {
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      b = Buffer.concat(chunks).toString('utf8');
+    } catch (e) {
+      b = '';
+    }
+  }
+  if (Buffer.isBuffer(b)) b = b.toString('utf8');
+  if (typeof b === 'string') {
+    try { b = JSON.parse(b); } catch (e) { b = {}; }
+  }
+  return b && typeof b === 'object' && !Array.isArray(b) ? b : {};
+}
 
 function parseCookies(str) {
   const out = {};
