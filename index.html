@@ -196,7 +196,11 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         ? crypto.randomUUID()
         : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
     }
+    // Modo de teste: abrir o site com ?fbtest=TESTxxxxx faz os eventos do servidor
+    // aparecerem na aba "Eventos de teste" do Gerenciador de Eventos da Meta.
+    var testCode = new URLSearchParams(window.location.search).get('fbtest');
     function sendCapi(payload) {
+      if (testCode) payload.test_event_code = testCode;
       try {
         fetch('/api/track', {
           method: 'POST',
