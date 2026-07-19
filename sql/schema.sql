@@ -91,26 +91,54 @@ as $$
 declare
   g grupos%rowtype;
 begin
-  -- 1) Fidelidade: quem já clicou volta para o mesmo grupo (se ativo e com vaga)
+  -- 1) FIDELIDADE ABSOLUTA: quem já recebeu um link recebe sempre o mesmo
+  --    grupo (mesmo pausado ou cheio — a pessoa já tem o acesso de qualquer
+  --    forma). Identificação em ordem de confiança: ext_id, cookie fbp,
+  --    e por fim IP + navegador nos últimos 30 dias.
   if p_external_id is not null and p_external_id <> '' then
     select gr.* into g
     from cliques c
     join grupos gr on gr.id = c.grupo_id
     where c.external_id = p_external_id
-      and gr.ativo
-      and (gr.max_cliques is null or gr.cliques_count < gr.max_cliques)
     order by c.criado_em desc
     limit 1;
   end if;
 
-  -- 2) Senão: grupo ativo com menos cliques e com vaga (rodízio equilibrado)
-  if g.id is null then
+  if g.id is null and p_fbp is not null and p_fbp <> '' then
     select gr.* into g
-    from grupos gr
-    where gr.ativo
-      and (gr.max_cliques is null or gr.cliques_count < gr.max_cliques)
-    order by gr.cliques_count asc, gr.id asc
+    from cliques c
+    join grupos gr on gr.id = c.grupo_id
+    where c.fbp = p_fbp
+    order by c.criado_em desc
     limit 1;
+  end if;
+
+  if g.id is null and p_ip is not null and p_user_agent is not null then
+    select gr.* into g
+    from cliques c
+    join grupos gr on gr.id = c.grupo_id
+    where c.ip = p_ip
+      and c.user_agent = p_user_agent
+      and c.criado_em > now() - interval '30 days'
+    order by c.criado_em desc
+    limit 1;
+  end if;
+
+  -- 2) Sem histórico:
+  if g.id is null then
+    if p_external_id is null or p_external_id = '' then
+      -- NA DÚVIDA (sem identificador confiável): Grupo 1
+      select gr.* into g from grupos gr where gr.id = 1;
+    else
+      -- Visitante novo identificável: sorteio uniforme (50/50 com 2 grupos)
+      -- entre os grupos ativos com vaga
+      select gr.* into g
+      from grupos gr
+      where gr.ativo
+        and (gr.max_cliques is null or gr.cliques_count < gr.max_cliques)
+      order by random()
+      limit 1;
+    end if;
   end if;
 
   -- 3) Nenhum grupo disponível: devolve vazio (o servidor usa o link reserva)
