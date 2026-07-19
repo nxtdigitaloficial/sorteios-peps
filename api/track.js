@@ -77,16 +77,26 @@ module.exports = async (req, res) => {
   const testCode = body.test_event_code || process.env.META_TEST_EVENT_CODE;
   if (testCode) payload.test_event_code = testCode;
 
+  // Registro da visita no Supabase (PageView) — em paralelo com a Meta;
+  // falha no banco nunca derruba o envio do evento.
+  const visitaPromise =
+    body.event_name === 'PageView'
+      ? logVisita(body, userData, fbp, fbc).catch(function () {})
+      : Promise.resolve();
+
   try {
-    const fbRes = await fetch(
-      'https://graph.facebook.com/' + API_VERSION + '/' + PIXEL_ID +
-        '/events?access_token=' + encodeURIComponent(token),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }
-    );
+    const [fbRes] = await Promise.all([
+      fetch(
+        'https://graph.facebook.com/' + API_VERSION + '/' + PIXEL_ID +
+          '/events?access_token=' + encodeURIComponent(token),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      ),
+      visitaPromise,
+    ]);
     const result = await fbRes.json();
     res.status(fbRes.ok ? 200 : 502).json({
       ok: fbRes.ok,
@@ -97,6 +107,60 @@ module.exports = async (req, res) => {
     res.status(500).json({ ok: false, error: String(e && e.message ? e.message : e) });
   }
 };
+
+// Grava a visita (PageView) no Supabase. Se as variáveis do Supabase ainda
+// não estiverem configuradas, simplesmente não faz nada.
+async function logVisita(body, userData, fbp, fbc) {
+  const su = process.env.SUPABASE_URL;
+  const sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!su || !sk) return;
+
+  const qs = new URLSearchParams(
+    typeof body.page_qs === 'string' ? body.page_qs.replace(/^\?/, '') : ''
+  );
+
+  const row = {
+    external_id: typeof body.external_id === 'string' ? body.external_id : null,
+    ip: userData.client_ip_address || null,
+    user_agent: userData.client_user_agent || null,
+    idioma: strOrNull(body.idioma),
+    fuso: strOrNull(body.fuso),
+    tela: strOrNull(body.tela),
+    plataforma: strOrNull(body.plataforma),
+    referrer: strOrNull(body.referrer),
+    url: strOrNull(body.event_source_url),
+    fbp: fbp || null,
+    fbc: fbc || null,
+    fbclid: qs.get('fbclid'),
+    utm_source: qs.get('utm_source'),
+    utm_medium: qs.get('utm_medium'),
+    utm_campaign: qs.get('utm_campaign'),
+    utm_content: qs.get('utm_content'),
+    utm_term: qs.get('utm_term'),
+  };
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    await fetch(su + '/rest/v1/visitas', {
+      method: 'POST',
+      headers: {
+        apikey: sk,
+        Authorization: 'Bearer ' + sk,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(row),
+      signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function strOrNull(v) {
+  return typeof v === 'string' && v ? v.slice(0, 500) : null;
+}
 
 // Aceita o corpo em qualquer formato que a plataforma entregar:
 // objeto já parseado, string, Buffer, ou stream ainda não lido.

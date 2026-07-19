@@ -163,6 +163,11 @@ var _extId = (function () {
     return v;
   } catch (e) { return undefined; }
 })();
+// Espelha o ext_id em cookie para o servidor reconhecer a pessoa no /api/go
+if (_extId) {
+  document.cookie = 'ext_id=' + encodeURIComponent(_extId) +
+    ';path=/;max-age=63072000;SameSite=Lax;Secure';
+}
 fbq('init', '946426101790251', _extId ? { external_id: _extId } : {});
 </script>
 <noscript><img height="1" width="1" style="display:none"
@@ -183,7 +188,7 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
 
       <p class="sub">👇 Grupo VIP de Sorteios — 100% Gratuito!</p>
 
-      <a href="https://chat.whatsapp.com/JJl7p5jjARbKZ35wcjQKw6" target="_blank" rel="noopener noreferrer" class="cta" id="cta-grupo">Entrar no Grupo VIP</a>
+      <a href="/api/go" class="cta" id="cta-grupo">Entrar no Grupo VIP</a>
 
       <div class="slots">
         ⏳ Vagas restantes: <b>4</b>
@@ -196,6 +201,11 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         <li><span>🏆</span> Resultados transparentes e ao vivo</li>
         <li><span>⚡</span> Avisos em primeira mão de cada ação nova</li>
       </ul>
+
+      <p style="margin-top:18px;font-size:11px;line-height:1.5;opacity:.55;text-align:center">
+        Este site usa cookies e dados de navegação para medição e direcionamento.
+        Ao continuar navegando, você concorda com esse uso.
+      </p>
     </div>
   </div>
   <!-- Eventos Meta: PageView e ViewContent pelos dois caminhos (Pixel + API de Conversoes), com event_id compartilhado p/ desduplicacao -->
@@ -256,13 +266,24 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         event_source_url: window.location.href,
         fbp: fbp,
         fbc: getFbc(),
-        external_id: getExtId()
+        external_id: getExtId(),
+        // dados de navegacao para o registro de visitas no servidor
+        page_qs: window.location.search,
+        referrer: document.referrer || undefined,
+        idioma: navigator.language,
+        fuso: (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return undefined; } })(),
+        tela: screen.width + 'x' + screen.height + '@' + (window.devicePixelRatio || 1),
+        plataforma: navigator.platform
       });
     });
 
     // VIEWCONTENT — no clique do botao, Pixel + API de Conversoes (mesmo event_id)
     var btn = document.getElementById('cta-grupo');
     if (btn) {
+      // Leva os parametros da campanha (fbclid, utm_*) junto para o /api/go
+      if (window.location.search) {
+        btn.href = '/api/go' + window.location.search;
+      }
       btn.addEventListener('click', function () {
         var vcId = newId();
         if (window.fbq) {
