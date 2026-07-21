@@ -39,7 +39,8 @@ create table if not exists visitas (
   utm_medium text,
   utm_campaign text,
   utm_content text,
-  utm_term text
+  utm_term text,
+  versao text
 );
 create index if not exists visitas_external_id_idx on visitas (external_id);
 create index if not exists visitas_criado_em_idx on visitas (criado_em);
@@ -60,7 +61,8 @@ create table if not exists cliques (
   utm_medium text,
   utm_campaign text,
   utm_content text,
-  utm_term text
+  utm_term text,
+  versao text
 );
 create index if not exists cliques_external_id_idx on cliques (external_id);
 create index if not exists cliques_grupo_id_idx on cliques (grupo_id);
@@ -82,7 +84,8 @@ create or replace function registrar_clique(
   p_utm_medium text default null,
   p_utm_campaign text default null,
   p_utm_content text default null,
-  p_utm_term text default null
+  p_utm_term text default null,
+  p_versao text default null
 ) returns table (grupo_id bigint, link text)
 language plpgsql
 security definer
@@ -150,10 +153,10 @@ begin
 
   insert into cliques (
     external_id, grupo_id, grupo_link, ip, user_agent, url,
-    fbp, fbc, fbclid, utm_source, utm_medium, utm_campaign, utm_content, utm_term
+    fbp, fbc, fbclid, utm_source, utm_medium, utm_campaign, utm_content, utm_term, versao
   ) values (
     nullif(p_external_id, ''), g.id, g.link, p_ip, p_user_agent, p_url,
-    p_fbp, p_fbc, p_fbclid, p_utm_source, p_utm_medium, p_utm_campaign, p_utm_content, p_utm_term
+    p_fbp, p_fbc, p_fbclid, p_utm_source, p_utm_medium, p_utm_campaign, p_utm_content, p_utm_term, p_versao
   );
 
   return query select g.id, g.link;

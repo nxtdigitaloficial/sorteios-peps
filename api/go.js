@@ -50,6 +50,7 @@ module.exports = async (req, res) => {
           p_utm_campaign: q.get('utm_campaign'),
           p_utm_content: q.get('utm_content'),
           p_utm_term: q.get('utm_term'),
+          p_versao: q.get('versao'),
         }),
         signal: ctrl.signal,
       });

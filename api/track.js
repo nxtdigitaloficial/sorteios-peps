@@ -11,7 +11,7 @@ const crypto = require('crypto');
 
 const PIXEL_ID = '946426101790251';
 const API_VERSION = 'v21.0';
-const ALLOWED_EVENTS = ['PageView', 'ViewContent'];
+const ALLOWED_EVENTS = ['PageView', 'ViewContent', 'Lead', 'InitiateCheckout'];
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -71,7 +71,11 @@ module.exports = async (req, res) => {
     user_data: userData,
   };
   if (body.event_source_url) event.event_source_url = body.event_source_url;
-  if (body.content_name) event.custom_data = { content_name: body.content_name };
+  const cd = {};
+  if (body.content_name) cd.content_name = body.content_name;
+  if (body.currency) cd.currency = body.currency;
+  if (typeof body.value === 'number') cd.value = body.value;
+  if (Object.keys(cd).length) event.custom_data = cd;
 
   const payload = { data: [event] };
   const testCode = body.test_event_code || process.env.META_TEST_EVENT_CODE;
@@ -137,6 +141,7 @@ async function logVisita(body, userData, fbp, fbc) {
     utm_campaign: qs.get('utm_campaign'),
     utm_content: qs.get('utm_content'),
     utm_term: qs.get('utm_term'),
+    versao: strOrNull(body.versao),
   };
 
   const ctrl = new AbortController();
