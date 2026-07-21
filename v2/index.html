@@ -281,17 +281,36 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
     function getExtId() {
       try { return localStorage.getItem('ext_id') || undefined; } catch (e) { return undefined; }
     }
+    // Origem do anúncio: guarda a query original num cookie e limpa a URL,
+    // para o link não poder ser compartilhado carregando o clique do anúncio.
+    var qsOriginal = window.location.search;
+    (function () {
+      try {
+        var fid = new URLSearchParams(qsOriginal).get('fbclid');
+        if (fid && fid.length >= 20) {
+          document.cookie = 'adp=' + encodeURIComponent(qsOriginal) +
+            ';path=/;max-age=7776000;SameSite=Lax;Secure';
+        }
+        if (qsOriginal && window.history && history.replaceState) {
+          history.replaceState(null, '', window.location.pathname + window.location.hash);
+        }
+      } catch (e) {}
+    })();
+    // query guardada no cookie (ou a desta visita, se ainda nao houver cookie)
+    function qsGuardada() {
+      return getCookie('adp') || qsOriginal || '';
+    }
     // fbc: usa o cookie _fbc; se ainda nao existir mas a visita veio de anuncio
     // (fbclid na URL), monta o fbc no formato oficial fb.1.<timestamp>.<fbclid>
     function getFbc() {
       var v = getCookie('_fbc');
       if (v) return v;
-      var fbclid = new URLSearchParams(window.location.search).get('fbclid');
+      var fbclid = new URLSearchParams(qsGuardada()).get('fbclid');
       return fbclid ? 'fb.1.' + Date.now() + '.' + fbclid : undefined;
     }
     // Modo de teste: abrir o site com ?fbtest=TESTxxxxx faz os eventos do servidor
     // aparecerem na aba "Eventos de teste" do Gerenciador de Eventos da Meta.
-    var testCode = new URLSearchParams(window.location.search).get('fbtest');
+    var testCode = new URLSearchParams(qsOriginal).get('fbtest');
     function sendCapi(payload) {
       if (testCode) payload.test_event_code = testCode;
       try {
@@ -326,7 +345,7 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         fbc: getFbc(),
         external_id: getExtId(),
         // dados de navegacao para o registro de visitas no servidor
-        page_qs: window.location.search,
+        page_qs: qsOriginal,
         referrer: document.referrer || undefined,
         idioma: navigator.language,
         fuso: (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return undefined; } })(),
@@ -336,10 +355,10 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
       });
     });
 
-    // Parametros da campanha repassados ao /api/go
+    // A origem do anuncio vai pelo cookie "adp" (a URL e limpa), entao o
+    // link so precisa identificar a versao da pagina.
     function goHref() {
-      var qs = window.location.search ? window.location.search + '&versao=v2' : '?versao=v2';
-      return '/api/go' + qs;
+      return '/api/go?versao=v2';
     }
 
     var modal = document.getElementById('confirm-modal');

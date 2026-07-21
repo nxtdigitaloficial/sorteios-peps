@@ -75,6 +75,17 @@ alter table grupos enable row level security;
 alter table visitas enable row level security;
 alter table cliques enable row level security;
 
+-- Só entra no rateio quem veio de anúncio. Considera válido um fbclid do
+-- Facebook com formato plausível (descarta vazio, truncado ou digitado).
+create or replace function fbclid_valido(v text) returns boolean
+language sql immutable as $$
+  select v is not null and length(v) >= 20 and v ~ '^[A-Za-z0-9_.-]+$';
+$$;
+
+-- índices para a busca de atribuição de anúncio nas visitas
+create index if not exists visitas_fbp_idx on visitas (fbp);
+create index if not exists visitas_ip_ua_idx on visitas (ip, user_agent);
+
 create or replace function registrar_clique(
   p_external_id text default null,
   p_ip text default null,
@@ -99,6 +110,7 @@ declare
   v_id bigint;
   v_total numeric;
   v_r numeric;
+  v_fbclid text;
 begin
   -- 1) FIDELIDADE ABSOLUTA: quem já recebeu um link recebe sempre o mesmo
   --    grupo (mesmo pausado ou cheio — a pessoa já tem o acesso de qualquer
@@ -133,13 +145,53 @@ begin
     limit 1;
   end if;
 
-  -- 2) Sem histórico:
+  -- 2) ATRIBUIÇÃO DE ANÚNCIO: descobre se a pessoa veio do Facebook.
+  --    Usa o fbclid do próprio clique (vindo do cookie de anúncio) e, se
+  --    faltar, procura nas visitas já registradas dela — os parâmetros são
+  --    limpos da URL, então a origem fica guardada no servidor.
+  if fbclid_valido(p_fbclid) then
+    v_fbclid := p_fbclid;
+  end if;
+
+  if v_fbclid is null and p_external_id is not null and p_external_id <> '' then
+    select v.fbclid into v_fbclid
+    from visitas v
+    where v.external_id = p_external_id
+      and fbclid_valido(v.fbclid)
+      and v.criado_em > now() - interval '30 days'
+    order by v.criado_em desc
+    limit 1;
+  end if;
+
+  if v_fbclid is null and p_fbp is not null and p_fbp <> '' then
+    select v.fbclid into v_fbclid
+    from visitas v
+    where v.fbp = p_fbp
+      and fbclid_valido(v.fbclid)
+      and v.criado_em > now() - interval '30 days'
+    order by v.criado_em desc
+    limit 1;
+  end if;
+
+  if v_fbclid is null and p_ip is not null and p_user_agent is not null then
+    select v.fbclid into v_fbclid
+    from visitas v
+    where v.ip = p_ip
+      and v.user_agent = p_user_agent
+      and fbclid_valido(v.fbclid)
+      and v.criado_em > now() - interval '30 days'
+    order by v.criado_em desc
+    limit 1;
+  end if;
+
+  -- 3) Sem histórico de grupo:
   if g.id is null then
-    if p_external_id is null or p_external_id = '' then
-      -- NA DÚVIDA (sem identificador confiável): Grupo 1
+    if v_fbclid is null or p_external_id is null or p_external_id = '' then
+      -- Não veio de anúncio (ou não há identificador para travar a pessoa
+      -- depois): vai SEMPRE para o Grupo 1, sem sorteio.
       select gr.* into g from grupos gr where gr.id = 1;
     else
-      -- Visitante novo identificável: sorteio PONDERADO pela coluna "peso"
+      -- Clique de anúncio: sorteio PONDERADO pela coluna "peso"
       -- (método da roleta). A chance de cada grupo é proporcional ao seu
       -- peso entre os ativos com vaga. Ex.: pesos 35 e 65 => 35% e 65%.
       select coalesce(sum(gr.peso), 0) into v_total
@@ -167,7 +219,7 @@ begin
     end if;
   end if;
 
-  -- 3) Nenhum grupo disponível: devolve vazio (o servidor usa o link reserva)
+  -- 4) Nenhum grupo disponível: devolve vazio (o servidor usa o link reserva)
   if g.id is null then
     return;
   end if;
@@ -179,7 +231,7 @@ begin
     fbp, fbc, fbclid, utm_source, utm_medium, utm_campaign, utm_content, utm_term, versao
   ) values (
     nullif(p_external_id, ''), g.id, g.link, p_ip, p_user_agent, p_url,
-    p_fbp, p_fbc, p_fbclid, p_utm_source, p_utm_medium, p_utm_campaign, p_utm_content, p_utm_term, p_versao
+    p_fbp, p_fbc, coalesce(v_fbclid, p_fbclid), p_utm_source, p_utm_medium, p_utm_campaign, p_utm_content, p_utm_term, p_versao
   );
 
   return query select g.id, g.link;

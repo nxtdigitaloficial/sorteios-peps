@@ -18,7 +18,18 @@ module.exports = async (req, res) => {
     (req.socket && req.socket.remoteAddress) ||
     null;
 
-  const fbclid = q.get('fbclid');
+  // Parâmetros de anúncio: a página limpa a URL e guarda a query original
+  // no cookie "adp", para o link não poder ser compartilhado com os
+  // parâmetros do Facebook. A URL ainda é aceita como reserva.
+  let adp = null;
+  try {
+    adp = cookies['adp'] ? new URLSearchParams(cookies['adp'].replace(/^\?/, '')) : null;
+  } catch (e) {
+    adp = null;
+  }
+  const par = nome => (adp && adp.get(nome)) || q.get(nome);
+
+  const fbclid = par('fbclid');
   const fbc =
     cookies['_fbc'] || (fbclid ? 'fb.1.' + Date.now() + '.' + fbclid : null);
 
@@ -45,11 +56,11 @@ module.exports = async (req, res) => {
           p_fbp: cookies['_fbp'] || null,
           p_fbc: fbc,
           p_fbclid: fbclid,
-          p_utm_source: q.get('utm_source'),
-          p_utm_medium: q.get('utm_medium'),
-          p_utm_campaign: q.get('utm_campaign'),
-          p_utm_content: q.get('utm_content'),
-          p_utm_term: q.get('utm_term'),
+          p_utm_source: par('utm_source'),
+          p_utm_medium: par('utm_medium'),
+          p_utm_campaign: par('utm_campaign'),
+          p_utm_content: par('utm_content'),
+          p_utm_term: par('utm_term'),
           p_versao: q.get('versao'),
         }),
         signal: ctrl.signal,
