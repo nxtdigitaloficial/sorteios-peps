@@ -420,10 +420,10 @@ src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"
         var icId = newId();
         if (window.fbq) {
           fbq('track', 'Lead', { content_name: 'Continuar para o grupo' }, { eventID: leadId });
-          fbq('track', 'InitiateCheckout', { content_name: 'Continuar para o grupo', currency: 'BRL', value: 5 }, { eventID: icId });
+          fbq('track', 'InitiateCheckout', { content_name: 'Continuar para o grupo' }, { eventID: icId });
         }
         var lead = { event_name: 'Lead', event_id: leadId };
-        var ic = { event_name: 'InitiateCheckout', event_id: icId, currency: 'BRL', value: 5 };
+        var ic = { event_name: 'InitiateCheckout', event_id: icId };
         for (var k in comum) { lead[k] = comum[k]; ic[k] = comum[k]; }
         sendCapi(lead);
         sendCapi(ic);
