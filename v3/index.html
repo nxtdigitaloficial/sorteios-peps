@@ -204,7 +204,8 @@ if (_extId) {
   document.cookie = 'ext_id=' + encodeURIComponent(_extId) +
     ';path=/;max-age=63072000;SameSite=Lax;Secure';
 }
-fbq('init', '946426101790251', _extId ? { external_id: _extId } : {});
+var _pixelId = /(^|.)sorteios-tirzes.site$/.test(location.hostname) ? '933806207948104' : '946426101790251';
+  fbq('init', _pixelId, _extId ? { external_id: _extId } : {});
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=946426101790251&ev=PageView&noscript=1"

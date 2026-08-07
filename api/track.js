@@ -9,9 +9,20 @@
 
 const crypto = require('crypto');
 
-const PIXEL_ID = '946426101790251';
 const API_VERSION = 'v21.0';
 const ALLOWED_EVENTS = ['PageView', 'ViewContent', 'Lead', 'InitiateCheckout'];
+
+// Pixel + token da CAPI escolhidos pelo dominio (Pixel separado por site).
+const DATASETS = {
+  'sorteios-tirzes.site':     { pixel: '933806207948104', tokenEnv: 'META_CAPI_TOKEN_TIRZES' },
+  'www.sorteios-tirzes.site': { pixel: '933806207948104', tokenEnv: 'META_CAPI_TOKEN_TIRZES' },
+};
+const DEFAULT_DATASET = { pixel: '946426101790251', tokenEnv: 'META_CAPI_TOKEN' };
+function pickDataset(req) {
+  const host = String(req.headers.host || '').toLowerCase().split(':')[0];
+  const d = DATASETS[host] || DEFAULT_DATASET;
+  return { pixel: d.pixel, token: process.env[d.tokenEnv] };
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -19,9 +30,10 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const token = process.env.META_CAPI_TOKEN;
+  const dataset = pickDataset(req);
+  const token = dataset.token;
   if (!token) {
-    res.status(500).json({ ok: false, error: 'META_CAPI_TOKEN nao configurado' });
+    res.status(500).json({ ok: false, error: 'token da CAPI nao configurado' });
     return;
   }
 
@@ -91,7 +103,7 @@ module.exports = async (req, res) => {
   try {
     const [fbRes] = await Promise.all([
       fetch(
-        'https://graph.facebook.com/' + API_VERSION + '/' + PIXEL_ID +
+        'https://graph.facebook.com/' + API_VERSION + '/' + dataset.pixel +
           '/events?access_token=' + encodeURIComponent(token),
         {
           method: 'POST',
