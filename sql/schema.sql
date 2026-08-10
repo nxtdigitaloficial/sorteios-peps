@@ -70,10 +70,35 @@ create table if not exists cliques (
 create index if not exists cliques_external_id_idx on cliques (external_id);
 create index if not exists cliques_grupo_id_idx on cliques (grupo_id);
 
+-- Eventos do cliente (ViewContent = clique no 1o botao / abrir pop-up; e
+-- tambem Lead e InitiateCheckout). Da o funil completo no servidor, por dominio.
+create table if not exists eventos (
+  id bigint generated always as identity primary key,
+  criado_em timestamptz not null default now(),
+  event_name text not null,
+  dominio text,
+  versao text,
+  external_id text,
+  ip text,
+  user_agent text,
+  fbp text,
+  fbc text,
+  fbclid text,
+  url text,
+  utm_source text,
+  utm_medium text,
+  utm_campaign text
+);
+create index if not exists eventos_criado_em_idx on eventos (criado_em);
+create index if not exists eventos_event_name_idx on eventos (event_name);
+create index if not exists eventos_dominio_idx on eventos (dominio);
+create index if not exists eventos_external_id_idx on eventos (external_id);
+
 -- Segurança: RLS ligado sem políticas — só a service_role (servidor) acessa.
 alter table grupos enable row level security;
 alter table visitas enable row level security;
 alter table cliques enable row level security;
+alter table eventos enable row level security;
 
 -- Só entra no rateio quem veio de anúncio. Considera válido um fbclid do
 -- Facebook com formato plausível (descarta vazio, truncado ou digitado).

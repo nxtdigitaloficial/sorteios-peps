@@ -93,12 +93,14 @@ module.exports = async (req, res) => {
   const testCode = body.test_event_code || process.env.META_TEST_EVENT_CODE;
   if (testCode) payload.test_event_code = testCode;
 
-  // Registro da visita no Supabase (PageView) — em paralelo com a Meta;
-  // falha no banco nunca derruba o envio do evento.
-  const visitaPromise =
+  // Registro no Supabase em paralelo com a Meta (falha no banco nunca derruba
+  // o envio): PageView -> tabela "visitas"; demais eventos (ViewContent = clique
+  // no 1o botao, Lead, InitiateCheckout) -> tabela "eventos", com o dominio.
+  const host = String(req.headers.host || '').toLowerCase().split(':')[0];
+  const logPromise =
     body.event_name === 'PageView'
       ? logVisita(body, userData, fbp, fbc).catch(function () {})
-      : Promise.resolve();
+      : logEvento(body, userData, fbp, fbc, host, cookies).catch(function () {});
 
   try {
     const [fbRes] = await Promise.all([
@@ -111,7 +113,7 @@ module.exports = async (req, res) => {
           body: JSON.stringify(payload),
         }
       ),
-      visitaPromise,
+      logPromise,
     ]);
     const result = await fbRes.json();
     res.status(fbRes.ok ? 200 : 502).json({
@@ -160,6 +162,54 @@ async function logVisita(body, userData, fbp, fbc) {
   const timer = setTimeout(() => ctrl.abort(), 3000);
   try {
     await fetch(su + '/rest/v1/visitas', {
+      method: 'POST',
+      headers: {
+        apikey: sk,
+        Authorization: 'Bearer ' + sk,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(row),
+      signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Grava eventos do cliente (ViewContent/Lead/InitiateCheckout) no Supabase,
+// com o dominio (req.headers.host) e o fbclid vindo do cookie "adp".
+async function logEvento(body, userData, fbp, fbc, host, cookies) {
+  const su = process.env.SUPABASE_URL;
+  const sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!su || !sk) return;
+
+  let adp = null;
+  try {
+    adp = cookies['adp'] ? new URLSearchParams(cookies['adp'].replace(/^\?/, '')) : null;
+  } catch (e) { adp = null; }
+  const par = (n) => (adp && adp.get(n)) || null;
+
+  const row = {
+    event_name: body.event_name,
+    dominio: host || null,
+    versao: strOrNull(body.versao),
+    external_id: typeof body.external_id === 'string' ? body.external_id : null,
+    ip: userData.client_ip_address || null,
+    user_agent: userData.client_user_agent || null,
+    fbp: fbp || null,
+    fbc: fbc || null,
+    fbclid: par('fbclid'),
+    url: strOrNull(body.event_source_url),
+    utm_source: par('utm_source'),
+    utm_medium: par('utm_medium'),
+    utm_campaign: par('utm_campaign'),
+  };
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    await fetch(su + '/rest/v1/eventos', {
       method: 'POST',
       headers: {
         apikey: sk,
