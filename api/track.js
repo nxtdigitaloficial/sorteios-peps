@@ -24,9 +24,28 @@ function pickDataset(req) {
   return { pixel: d.pixel, token: process.env[d.tokenEnv] };
 }
 
+// Dominios proprios autorizados a enviar eventos por este endpoint.
+const ALLOWED_HOSTS = [
+  'sorteios-peps.shop', 'www.sorteios-peps.shop',
+  'sorteios-tirzes.site', 'www.sorteios-tirzes.site',
+];
+function origemPermitida(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true; // sem Origin (servidor/curl): nao bloqueia
+  let host = '';
+  try { host = new URL(origin).host.toLowerCase(); } catch (e) { return false; }
+  return ALLOWED_HOSTS.includes(host) || host.endsWith('.vercel.app');
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return;
+  }
+
+  // Impede que outros sites injetem eventos no seu Pixel/CAPI por este endpoint.
+  if (!origemPermitida(req)) {
+    res.status(403).json({ ok: false, error: 'origem nao permitida' });
     return;
   }
 
