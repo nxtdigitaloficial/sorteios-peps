@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>Painel — Sorteios</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--ink:#e2e8f0;--muted:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--amber:#f59e0b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px}
+  a{color:var(--blue)}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  h1{font-size:20px;margin:0}
+  h2{font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 10px}
+  input,select,button{font:inherit;color:var(--ink);background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  input:focus,select:focus{outline:2px solid var(--blue)}
+  button{background:var(--blue);border-color:var(--blue);color:#fff;cursor:pointer;font-weight:600}
+  button.sec{background:transparent;color:var(--ink);border-color:var(--line)}
+  button.danger{background:transparent;color:var(--red);border-color:var(--red)}
+  button:disabled{opacity:.5;cursor:default}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .tabs{display:flex;gap:6px;margin:14px 0}
+  .tabs button{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .tabs button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .kpi{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:12px}
+  .kpi .n{font-size:24px;font-weight:800}
+  .kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:#0b1220;border:1px solid var(--line)}
+  .bar{height:8px;background:#0b1220;border-radius:6px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--green)}
+  .muted{color:var(--muted)}
+  .ok{color:var(--green)} .off{color:var(--muted)}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0b1220;border:1px solid var(--line);padding:10px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  input.mini{width:70px} input.link{min-width:260px;flex:1}
+  label.sw{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+  #login{max-width:360px;margin:12vh auto}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="login" class="wrap">
+  <div class="card">
+    <h1>🔒 Painel</h1>
+    <p class="hint">Digite a senha de administrador.</p>
+    <div class="row">
+      <input id="tok" type="password" placeholder="senha" style="flex:1" autocomplete="off">
+      <button id="entrar">Entrar</button>
+    </div>
+    <p id="loginerr" class="hint" style="color:var(--red)"></p>
+  </div>
+</div>
+
+<div id="painel" class="wrap" hidden>
+  <div class="row" style="justify-content:space-between">
+    <h1>Painel — Sorteios</h1>
+    <button class="sec" id="sair">Sair</button>
+  </div>
+  <div class="tabs">
+    <button data-tab="grupos" class="on">Grupos & Tráfego</button>
+    <button data-tab="regras">Regras & Trava</button>
+    <button data-tab="metricas">Métricas</button>
+  </div>
+
+  <section id="tab-grupos">
+    <div class="card">
+      <h2 style="margin-top:4px">Grupos e distribuição de tráfego</h2>
+      <div id="grupos"></div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:4px">Adicionar grupo</h2>
+      <div class="row">
+        <input id="n_nome" placeholder="Nome (ex: Grupo 5)">
+        <input id="n_link" class="link" placeholder="https://chat.whatsapp.com/...">
+        <input id="n_peso" class="mini" type="number" placeholder="peso" value="0">
+        <input id="n_max" class="mini" type="number" placeholder="máx (opc)">
+        <button id="addgrupo">Adicionar</button>
+      </div>
+      <p class="hint">Peso = fatia do tráfego de anúncio. O % é calculado automaticamente entre os grupos ativos.</p>
+    </div>
+  </section>
+
+  <section id="tab-regras" hidden>
+    <div class="card">
+      <h2 style="margin-top:4px">Trava de domínio (anti-clone)</h2>
+      <label class="sw"><input type="checkbox" id="c_trava"> Trava ativa (clones são redirecionados pro seu site)</label>
+      <div style="margin-top:10px">
+        <div class="muted" style="font-size:12px;margin-bottom:4px">Domínios liberados extras (um por linha) — os seus domínios já são liberados automaticamente:</div>
+        <textarea id="c_dominios" rows="3" style="width:100%;background:#0b1220;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px"></textarea>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:4px">Regras de distribuição</h2>
+      <div class="row" style="gap:20px">
+        <label>Grupo padrão (não identificado):
+          <select id="c_fallback"></select>
+        </label>
+        <label class="sw"><input type="checkbox" id="c_soanuncio"> Só tráfego de anúncio entra no sorteio</label>
+        <label>Fidelidade (dias): <input id="c_fid" class="mini" type="number" min="1"></label>
+      </div>
+      <p class="hint">"Só anúncio" ligado: quem não vem de anúncio vai pro grupo padrão. Desligado: qualquer visitante identificável entra no sorteio.</p>
+    </div>
+    <button id="salvarcfg">Salvar regras & trava</button>
+  </section>
+
+  <section id="tab-metricas" hidden>
+    <div class="card">
+      <div class="row">
+        <select id="m_periodo">
+          <option value="hoje">Hoje</option>
+          <option value="ontem">Ontem</option>
+          <option value="7">Últimos 7 dias</option>
+          <option value="30">Últimos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        <span id="m_custom" hidden class="row">
+          <input id="m_de" type="date"> <input id="m_ate" type="date">
+        </span>
+        <select id="m_dominio"><option value="todos">Todos domínios</option><option>sorteios-peps.shop</option><option>sorteios-tirzes.site</option></select>
+        <select id="m_versao"><option value="todos">Todas versões</option><option>v1</option><option>v2</option><option>v3</option></select>
+        <select id="m_origem"><option value="todos">Todas origens</option><option value="anuncio">Só anúncio</option><option value="organico">Só orgânico</option></select>
+        <button id="m_ver">Ver</button>
+      </div>
+    </div>
+    <div id="m_res"></div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var TOK = '';
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1800);}
+async function api(acao, extra){
+  var r = await fetch('/api/admin', {method:'POST',headers:{'Content-Type':'application/json','x-admin-token':TOK},body:JSON.stringify(Object.assign({acao:acao},extra||{}))});
+  var j = await r.json().catch(function(){return{ok:false,error:'resposta invalida'}});
+  if(r.status===401){throw new Error('401');}
+  return j;
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]});}
+
+// ---------- login ----------
+document.getElementById('entrar').onclick = entrar;
+document.getElementById('tok').addEventListener('keydown',function(e){if(e.key==='Enter')entrar();});
+async function entrar(){
+  TOK = document.getElementById('tok').value.trim();
+  try{
+    var j = await api('estado');
+    if(!j.ok){throw new Error('x');}
+    try{sessionStorage.setItem('admtok',TOK);}catch(e){}
+    document.getElementById('login').hidden=true;
+    document.getElementById('painel').hidden=false;
+    render(j);
+  }catch(e){
+    document.getElementById('loginerr').textContent='Senha incorreta.';
+  }
+}
+document.getElementById('sair').onclick=function(){try{sessionStorage.removeItem('admtok')}catch(e){};location.reload();};
+
+// ---------- tabs ----------
+document.querySelectorAll('.tabs button').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('.tabs button').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');
+    ['grupos','regras','metricas'].forEach(function(t){document.getElementById('tab-'+t).hidden=(t!==b.dataset.tab)});
+  };
+});
+
+// ---------- estado / grupos / config ----------
+var GRUPOS=[], CONFIG={};
+function render(j){ GRUPOS=j.grupos||[]; CONFIG=j.config||{}; renderGrupos(); renderConfig(); }
+async function recarregar(){ var j=await api('estado'); render(j); }
+
+function renderGrupos(){
+  var ativos=GRUPOS.filter(function(g){return g.ativo});
+  var somaPeso=ativos.reduce(function(s,g){return s+Number(g.peso||0)},0)||1;
+  var h='<table><thead><tr><th>Grupo</th><th>Link</th><th>Peso</th><th>% tráfego</th><th>Cliques</th><th>Máx</th><th>Ativo</th><th></th></tr></thead><tbody>';
+  GRUPOS.forEach(function(g){
+    var pct = g.ativo ? Math.round(1000*Number(g.peso||0)/somaPeso)/10 : 0;
+    h+='<tr data-id="'+g.id+'">'
+      +'<td><input value="'+esc(g.nome)+'" class="e_nome" style="width:110px"></td>'
+      +'<td><input value="'+esc(g.link)+'" class="e_link link"></td>'
+      +'<td><input value="'+Number(g.peso||0)+'" class="e_peso mini" type="number"></td>'
+      +'<td>'+pct+'%</td>'
+      +'<td class="muted">'+(g.cliques_count||0)+'</td>'
+      +'<td><input value="'+(g.max_cliques==null?'':g.max_cliques)+'" class="e_max mini" type="number" placeholder="—"></td>'
+      +'<td><label class="sw"><input type="checkbox" class="e_ativo" '+(g.ativo?'checked':'')+'></label></td>'
+      +'<td><button class="salvar1">Salvar</button></td></tr>';
+  });
+  h+='</tbody></table>';
+  document.getElementById('grupos').innerHTML=h;
+  document.querySelectorAll('#grupos tr[data-id]').forEach(function(tr){
+    tr.querySelector('.salvar1').onclick=async function(){
+      var id=tr.dataset.id;
+      var r=await api('grupo_editar',{id:id,
+        nome:tr.querySelector('.e_nome').value,
+        link:tr.querySelector('.e_link').value.trim(),
+        peso:tr.querySelector('.e_peso').value,
+        max_cliques:tr.querySelector('.e_max').value,
+        ativo:tr.querySelector('.e_ativo').checked});
+      if(r.ok){toast('Salvo');recarregar();}else{toast('Erro: '+(r.error||'link inválido'));}
+    };
+  });
+}
+
+document.getElementById('addgrupo').onclick=async function(){
+  var r=await api('grupo_add',{nome:document.getElementById('n_nome').value,link:document.getElementById('n_link').value.trim(),peso:document.getElementById('n_peso').value,max_cliques:document.getElementById('n_max').value});
+  if(r.ok){toast('Grupo adicionado');document.getElementById('n_nome').value='';document.getElementById('n_link').value='';document.getElementById('n_peso').value='0';document.getElementById('n_max').value='';recarregar();}
+  else{toast('Erro: '+(r.error||'verifique o link'));}
+};
+
+function renderConfig(){
+  document.getElementById('c_trava').checked = CONFIG.trava_ativa!==false;
+  document.getElementById('c_dominios').value = (CONFIG.dominios_extra||[]).join('\n');
+  document.getElementById('c_soanuncio').checked = CONFIG.somente_anuncio!==false;
+  document.getElementById('c_fid').value = CONFIG.fidelidade_dias||30;
+  var sel=document.getElementById('c_fallback'); sel.innerHTML='';
+  GRUPOS.forEach(function(g){var o=document.createElement('option');o.value=g.id;o.textContent=g.nome;if(Number(CONFIG.grupo_fallback)===g.id)o.selected=true;sel.appendChild(o);});
+}
+document.getElementById('salvarcfg').onclick=async function(){
+  var dom=document.getElementById('c_dominios').value.split('\n').map(function(s){return s.trim().toLowerCase()}).filter(Boolean);
+  var r=await api('config_salvar',{trava_ativa:document.getElementById('c_trava').checked,dominios_extra:dom,grupo_fallback:document.getElementById('c_fallback').value,somente_anuncio:document.getElementById('c_soanuncio').checked,fidelidade_dias:document.getElementById('c_fid').value});
+  if(r.ok){toast('Regras salvas');CONFIG=r.config||CONFIG;}else{toast('Erro ao salvar');}
+};
+
+// ---------- metricas ----------
+document.getElementById('m_periodo').onchange=function(){document.getElementById('m_custom').hidden=this.value!=='custom';};
+document.getElementById('m_ver').onclick=verMetricas;
+function periodo(){
+  var p=document.getElementById('m_periodo').value, now=new Date(), de, ate=now;
+  function midnight(d){var x=new Date(d);x.setHours(0,0,0,0);return x;}
+  if(p==='hoje'){de=midnight(now);}
+  else if(p==='ontem'){de=midnight(new Date(now-864e5));ate=midnight(now);}
+  else if(p==='7'){de=new Date(now-7*864e5);}
+  else if(p==='30'){de=new Date(now-30*864e5);}
+  else{var d1=document.getElementById('m_de').value,d2=document.getElementById('m_ate').value;de=d1?new Date(d1+'T00:00'):midnight(now);ate=d2?new Date(d2+'T23:59:59'):now;}
+  return {de:de.toISOString(),ate:ate.toISOString()};
+}
+async function verMetricas(){
+  var pr=periodo();
+  var r=await api('metricas',{de:pr.de,ate:pr.ate,dominio:document.getElementById('m_dominio').value,versao:document.getElementById('m_versao').value,origem:document.getElementById('m_origem').value});
+  if(!r.ok){toast('Erro ao carregar');return;}
+  renderMetricas(r.metricas||{});
+}
+function kpi(n,l){return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>';}
+function tabela(titulo,linhas){var h='<div class="card"><h2 style="margin-top:2px">'+titulo+'</h2><table><tbody>';linhas.forEach(function(l){h+='<tr><td>'+l[0]+'</td><td style="text-align:right">'+l[1]+'</td></tr>';});return h+'</tbody></table></div>';}
+function renderMetricas(m){
+  var el=document.getElementById('m_res');
+  var h='<div class="card"><div class="grid">'
+    +kpi(m.visitas||0,'Visitas')
+    +kpi(m.visitantes_unicos||0,'Visitantes únicos')
+    +kpi(m.cliques_1o_botao||0,'Cliques 1º botão')
+    +kpi(m.continuar||0,'Continuar (Lead)')
+    +kpi(m.finalizacao||0,'Finalização (IC)')
+    +kpi(m.entrou_grupo||0,'Entrou no grupo')
+    +kpi((m.taxa_botao||0)+'%','Taxa visita→botão')
+    +kpi((m.taxa_grupo||0)+'%','Taxa visita→grupo')
+    +kpi((m.pct_mobile||0)+'%','Mobile')
+    +'</div></div>';
+  // por grupo com barras
+  h+='<div class="card"><h2 style="margin-top:2px">Distribuição por grupo</h2><table><tbody>';
+  (m.por_grupo||[]).forEach(function(g){h+='<tr><td style="width:120px">'+esc(g.nome)+'</td><td><div class="bar"><i style="width:'+(g.pct||0)+'%"></i></div></td><td style="text-align:right;width:120px">'+g.cliques+' ('+(g.pct||0)+'%)</td></tr>';});
+  h+='</tbody></table></div>';
+  var od=(m.por_dominio||[]).map(function(x){return[esc(x.dominio),x.visitas]});
+  var ov=(m.por_versao||[]).map(function(x){return[esc(x.versao),x.visitas]});
+  var oc=(m.por_campanha||[]).map(function(x){return[esc(x.campanha),x.visitas]});
+  var org=m.por_origem||{};
+  h+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">'
+    +tabela('Por domínio',od)
+    +tabela('Por versão',ov)
+    +tabela('Por origem',[['Anúncio',org.anuncio||0],['Orgânico',org.organico||0]])
+    +tabela('Top campanhas (UTM)',oc)
+    +'</div>';
+  // serie
+  var s=m.serie||[];
+  if(s.length){var mx=Math.max.apply(null,s.map(function(x){return x.visitas||0}))||1;
+    h+='<div class="card"><h2 style="margin-top:2px">Por dia</h2><table><tbody>';
+    s.forEach(function(x){h+='<tr><td style="width:60px">'+esc(x.dia)+'</td><td><div class="bar"><i style="width:'+Math.round(100*(x.visitas||0)/mx)+'%"></i></div></td><td style="text-align:right;width:150px">'+(x.visitas||0)+' vis · '+(x.grupo||0)+' grupo</td></tr>';});
+    h+='</tbody></table></div>';
+  }
+  el.innerHTML=h;
+}
+
+// auto-login se tiver token guardado
+(function(){try{var t=sessionStorage.getItem('admtok');if(t){document.getElementById('tok').value=t;entrar();}}catch(e){}})();
+</script>
+</body>
+</html>

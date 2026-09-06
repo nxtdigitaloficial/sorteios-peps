@@ -269,3 +269,33 @@ revoke execute on function registrar_clique from public, anon, authenticated;
 insert into grupos (nome, link)
 select 'Grupo 1', 'https://chat.whatsapp.com/JJl7p5jjARbKZ35wcjQKw6'
 where not exists (select 1 from grupos);
+
+-- =====================================================================
+-- MIGRAÇÃO PAINEL (2026-09-06): config, coluna dominio, metricas.
+-- Aplicada no banco; aqui como referência reproduzível.
+-- =====================================================================
+create table if not exists config (
+  id int primary key default 1,
+  trava_ativa boolean not null default true,
+  dominios_extra text[] not null default '{}',
+  grupo_fallback bigint not null default 1,
+  somente_anuncio boolean not null default true,
+  fidelidade_dias int not null default 30,
+  atualizado_em timestamptz not null default now(),
+  constraint config_singleton check (id = 1)
+);
+insert into config (id) values (1) on conflict (id) do nothing;
+alter table config enable row level security;
+
+alter table visitas add column if not exists dominio text;
+alter table cliques add column if not exists dominio text;
+create index if not exists visitas_dominio_idx on visitas (dominio);
+create index if not exists cliques_dominio_idx on cliques (dominio);
+
+-- registrar_clique ganhou p_dominio e passou a ler regras da tabela config.
+-- (A versão completa está aplicada no banco; a antiga de 13 args foi dropada.)
+drop function if exists registrar_clique(text,text,text,text,text,text,text,text,text,text,text,text,text);
+
+-- metricas(): agrega visitas/eventos/cliques com filtros (período, domínio,
+-- versão, origem) e devolve um JSON. Usada pelo painel /admin via /api/admin.
+-- (Definição completa aplicada no banco.)

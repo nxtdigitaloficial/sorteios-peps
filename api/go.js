@@ -62,6 +62,7 @@ module.exports = async (req, res) => {
           p_utm_content: par('utm_content'),
           p_utm_term: par('utm_term'),
           p_versao: q.get('versao'),
+          p_dominio: String(req.headers.host || '').toLowerCase().split(':')[0] || null,
         }),
         signal: ctrl.signal,
       });

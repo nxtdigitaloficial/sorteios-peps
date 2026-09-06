@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<script>
+/* Trava de dominio anti-clone: dominios reais nunca sao afetados. */
+(function(){try{
+  var h=(location.hostname||"").toLowerCase();
+  var OK=["sorteios-peps.shop","www.sorteios-peps.shop","sorteios-tirzes.site","www.sorteios-tirzes.site","localhost","127.0.0.1",""];
+  if(OK.indexOf(h)!==-1||/.vercel.app$/.test(h)||location.protocol==="file:")return;
+  fetch("https://sorteios-peps.shop/api/config",{cache:"no-store"}).then(function(r){return r.json();}).then(function(cfg){
+    if(!cfg||cfg.trava_ativa===false)return;
+    var ex=(cfg.dominios_extra||[]).map(function(s){return String(s).toLowerCase();});
+    if(ex.indexOf(h)!==-1)return;
+    location.replace("https://sorteios-peps.shop/");
+  }).catch(function(){});
+}catch(e){}})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="facebook-domain-verification" content="pp8clsujk1up53r2czmh4n95crg0ui" />

@@ -118,7 +118,7 @@ module.exports = async (req, res) => {
   const host = String(req.headers.host || '').toLowerCase().split(':')[0];
   const logPromise =
     body.event_name === 'PageView'
-      ? logVisita(body, userData, fbp, fbc).catch(function () {})
+      ? logVisita(body, userData, fbp, fbc, host).catch(function () {})
       : logEvento(body, userData, fbp, fbc, host, cookies).catch(function () {});
 
   try {
@@ -147,7 +147,7 @@ module.exports = async (req, res) => {
 
 // Grava a visita (PageView) no Supabase. Se as variáveis do Supabase ainda
 // não estiverem configuradas, simplesmente não faz nada.
-async function logVisita(body, userData, fbp, fbc) {
+async function logVisita(body, userData, fbp, fbc, host) {
   const su = process.env.SUPABASE_URL;
   const sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!su || !sk) return;
@@ -157,6 +157,7 @@ async function logVisita(body, userData, fbp, fbc) {
   );
 
   const row = {
+    dominio: host || null,
     external_id: typeof body.external_id === 'string' ? body.external_id : null,
     ip: userData.client_ip_address || null,
     user_agent: userData.client_user_agent || null,
