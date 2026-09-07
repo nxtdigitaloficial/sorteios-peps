@@ -72,6 +72,26 @@ module.exports = async (req, res) => {
       return;
     }
 
+    if (acao === 'grupos_salvar') {
+      const lista = Array.isArray(body.grupos) ? body.grupos : [];
+      const erros = [];
+      for (const g of lista) {
+        const nome = String(g.nome || '').slice(0, 80).trim();
+        const link = String(g.link || '').trim();
+        const peso = Number(g.peso) || 0;
+        const ativo = g.ativo !== false;
+        if (!nome || !WA.test(link)) { erros.push(nome || '(sem nome)'); continue; }
+        if (g.id) {
+          await sb('/rest/v1/grupos?id=eq.' + Number(g.id), { method: 'PATCH', body: JSON.stringify({ nome, link, peso, ativo }) });
+        } else {
+          await sb('/rest/v1/grupos', { method: 'POST', body: JSON.stringify({ nome, link, peso, ativo }) });
+        }
+      }
+      const g = await sb('/rest/v1/grupos?select=*&order=id.asc');
+      res.status(200).json({ ok: erros.length === 0, grupos: g.data || [], erros });
+      return;
+    }
+
     if (acao === 'config_salvar') {
       const upd = { atualizado_em: new Date().toISOString() };
       if ('trava_ativa' in body) upd.trava_ativa = !!body.trava_ativa;

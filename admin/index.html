@@ -70,19 +70,13 @@
 
   <section id="tab-grupos">
     <div class="card">
-      <h2 style="margin-top:4px">Grupos e distribuição de tráfego</h2>
-      <div id="grupos"></div>
-    </div>
-    <div class="card">
-      <h2 style="margin-top:4px">Adicionar grupo</h2>
-      <div class="row">
-        <input id="n_nome" placeholder="Nome (ex: Grupo 5)">
-        <input id="n_link" class="link" placeholder="https://chat.whatsapp.com/...">
-        <input id="n_peso" class="mini" type="number" placeholder="peso" value="0">
-        <input id="n_max" class="mini" type="number" placeholder="máx (opc)">
-        <button id="addgrupo">Adicionar</button>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h2 style="margin:0">Grupos e distribuição de tráfego</h2>
+        <div class="row" id="g_acoes"></div>
       </div>
-      <p class="hint">Peso = fatia do tráfego de anúncio. O % é calculado automaticamente entre os grupos ativos.</p>
+      <div id="grupos"></div>
+      <div id="g_aviso" class="hint" style="margin-top:10px"></div>
+      <p class="hint">Peso = fatia do tráfego de anúncio. O % é calculado automaticamente entre os grupos ativos — não precisa somar 100.</p>
     </div>
   </section>
 
@@ -177,43 +171,80 @@ var GRUPOS=[], CONFIG={};
 function render(j){ GRUPOS=j.grupos||[]; CONFIG=j.config||{}; renderGrupos(); renderConfig(); }
 async function recarregar(){ var j=await api('estado'); render(j); }
 
-function renderGrupos(){
-  var ativos=GRUPOS.filter(function(g){return g.ativo});
-  var somaPeso=ativos.reduce(function(s,g){return s+Number(g.peso||0)},0)||1;
-  var h='<table><thead><tr><th>Grupo</th><th>Link</th><th>Peso</th><th>% tráfego</th><th>Cliques</th><th>Máx</th><th>Ativo</th><th></th></tr></thead><tbody>';
-  GRUPOS.forEach(function(g){
-    var pct = g.ativo ? Math.round(1000*Number(g.peso||0)/somaPeso)/10 : 0;
-    h+='<tr data-id="'+g.id+'">'
-      +'<td><input value="'+esc(g.nome)+'" class="e_nome" style="width:110px"></td>'
-      +'<td><input value="'+esc(g.link)+'" class="e_link link"></td>'
-      +'<td><input value="'+Number(g.peso||0)+'" class="e_peso mini" type="number"></td>'
-      +'<td>'+pct+'%</td>'
-      +'<td class="muted">'+(g.cliques_count||0)+'</td>'
-      +'<td><input value="'+(g.max_cliques==null?'':g.max_cliques)+'" class="e_max mini" type="number" placeholder="—"></td>'
-      +'<td><label class="sw"><input type="checkbox" class="e_ativo" '+(g.ativo?'checked':'')+'></label></td>'
-      +'<td><button class="salvar1">Salvar</button></td></tr>';
-  });
-  h+='</tbody></table>';
-  document.getElementById('grupos').innerHTML=h;
-  document.querySelectorAll('#grupos tr[data-id]').forEach(function(tr){
-    tr.querySelector('.salvar1').onclick=async function(){
-      var id=tr.dataset.id;
-      var r=await api('grupo_editar',{id:id,
-        nome:tr.querySelector('.e_nome').value,
-        link:tr.querySelector('.e_link').value.trim(),
-        peso:tr.querySelector('.e_peso').value,
-        max_cliques:tr.querySelector('.e_max').value,
-        ativo:tr.querySelector('.e_ativo').checked});
-      if(r.ok){toast('Salvo');recarregar();}else{toast('Erro: '+(r.error||'link inválido'));}
-    };
-  });
+var modoEdicao=false, rascunho=[];
+var WA=/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+$/;
+function calcPcts(lista){
+  var soma=lista.filter(function(g){return g.ativo}).reduce(function(s,g){return s+(Number(g.peso)||0)},0);
+  return lista.map(function(g){return (g.ativo && soma>0)?Math.round(1000*(Number(g.peso)||0)/soma)/10:0;});
 }
-
-document.getElementById('addgrupo').onclick=async function(){
-  var r=await api('grupo_add',{nome:document.getElementById('n_nome').value,link:document.getElementById('n_link').value.trim(),peso:document.getElementById('n_peso').value,max_cliques:document.getElementById('n_max').value});
-  if(r.ok){toast('Grupo adicionado');document.getElementById('n_nome').value='';document.getElementById('n_link').value='';document.getElementById('n_peso').value='0';document.getElementById('n_max').value='';recarregar();}
-  else{toast('Erro: '+(r.error||'verifique o link'));}
-};
+function renderGrupos(){
+  var acoes=document.getElementById('g_acoes');
+  var av=document.getElementById('g_aviso');
+  if(!modoEdicao){
+    var pv=calcPcts(GRUPOS);
+    var h='<table><thead><tr><th>Grupo</th><th>Link</th><th>Peso</th><th>% Tráfego</th><th>Ativo</th></tr></thead><tbody>';
+    GRUPOS.forEach(function(g,i){
+      h+='<tr><td>'+esc(g.nome)+'</td>'
+        +'<td class="muted" style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(g.link)+'</td>'
+        +'<td>'+(Number(g.peso)||0)+'</td><td><b>'+pv[i]+'%</b></td>'
+        +'<td>'+(g.ativo?'<span class="ok">● ativo</span>':'<span class="off">○ pausado</span>')+'</td></tr>';
+    });
+    document.getElementById('grupos').innerHTML=h+'</tbody></table>';
+    acoes.innerHTML='<button id="b_editar">Editar</button><button class="sec" id="b_add">Adicionar grupo</button>';
+    document.getElementById('b_editar').onclick=entrarEdicao;
+    document.getElementById('b_add').onclick=function(){entrarEdicao();adicionarLinha();};
+    av.innerHTML='';
+  } else {
+    var h='<table><thead><tr><th>Grupo</th><th>Link</th><th>Peso</th><th>% Tráfego</th><th>Ativo</th><th></th></tr></thead><tbody>';
+    rascunho.forEach(function(g,i){
+      h+='<tr data-i="'+i+'">'
+        +'<td><input class="r_nome" value="'+esc(g.nome)+'" style="width:120px"></td>'
+        +'<td><input class="r_link link" value="'+esc(g.link)+'" placeholder="https://chat.whatsapp.com/..."></td>'
+        +'<td><input class="r_peso mini" type="number" value="'+(Number(g.peso)||0)+'"></td>'
+        +'<td class="r_pct"><b>0%</b></td>'
+        +'<td><label class="sw"><input type="checkbox" class="r_ativo" '+(g.ativo?'checked':'')+'></label></td>'
+        +'<td><button class="danger r_rem" title="remover">✕</button></td></tr>';
+    });
+    document.getElementById('grupos').innerHTML=h+'</tbody></table>';
+    acoes.innerHTML='<button class="sec" id="b_add2">+ Grupo</button><button id="b_salvar">Salvar distribuição</button><button class="sec" id="b_cancel">Cancelar</button>';
+    document.getElementById('b_add2').onclick=adicionarLinha;
+    document.getElementById('b_salvar').onclick=salvarTudo;
+    document.getElementById('b_cancel').onclick=function(){modoEdicao=false;renderGrupos();};
+    document.querySelectorAll('#grupos tr[data-i]').forEach(function(tr){
+      var idx=Number(tr.dataset.i);
+      tr.querySelectorAll('input').forEach(function(inp){inp.addEventListener('input',lerRascunho);inp.addEventListener('change',lerRascunho);});
+      var rem=tr.querySelector('.r_rem');
+      if(rascunho[idx].id){rem.style.display='none';} // existente: use "pausar" (desmarcar Ativo)
+      rem.onclick=function(){rascunho.splice(idx,1);renderGrupos();};
+    });
+    lerRascunho();
+  }
+}
+function lerRascunho(){
+  document.querySelectorAll('#grupos tr[data-i]').forEach(function(tr){
+    var i=Number(tr.dataset.i);
+    rascunho[i].nome=tr.querySelector('.r_nome').value;
+    rascunho[i].link=tr.querySelector('.r_link').value.trim();
+    rascunho[i].peso=Number(tr.querySelector('.r_peso').value)||0;
+    rascunho[i].ativo=tr.querySelector('.r_ativo').checked;
+  });
+  var pv=calcPcts(rascunho);
+  document.querySelectorAll('#grupos tr[data-i]').forEach(function(tr){var i=Number(tr.dataset.i);tr.querySelector('.r_pct').innerHTML='<b>'+pv[i]+'%</b>';});
+  var soma=rascunho.filter(function(g){return g.ativo}).reduce(function(s,g){return s+(Number(g.peso)||0)},0);
+  var av=document.getElementById('g_aviso');
+  if(soma===100){av.innerHTML='<span class="ok">✓ Soma dos pesos ativos: 100</span>';}
+  else{av.innerHTML='<span style="color:var(--amber)">⚠️ A soma dos pesos ativos é '+soma+' (não 100). Pode salvar assim mesmo — a distribuição é proporcional.</span>';}
+}
+function entrarEdicao(){modoEdicao=true;rascunho=GRUPOS.map(function(g){return {id:g.id,nome:g.nome,link:g.link,peso:Number(g.peso)||0,ativo:g.ativo!==false};});renderGrupos();}
+function adicionarLinha(){if(!modoEdicao)entrarEdicao();rascunho.push({nome:'',link:'',peso:0,ativo:true});renderGrupos();}
+async function salvarTudo(){
+  lerRascunho();
+  var inval=rascunho.filter(function(g){return !String(g.nome).trim()||!WA.test(g.link);});
+  if(inval.length){toast('Verifique: nome vazio ou link inválido (deve ser chat.whatsapp.com/...)');return;}
+  var r=await api('grupos_salvar',{grupos:rascunho});
+  if(r.ok){toast('Distribuição salva');modoEdicao=false;recarregar();}
+  else{toast('Erro'+(r.erros&&r.erros.length?': '+r.erros.join(', '):''));}
+}
 
 function renderConfig(){
   document.getElementById('c_trava').checked = CONFIG.trava_ativa!==false;
